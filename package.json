@@ -7,7 +7,11 @@
     "dev": "wrangler dev src/worker.js --local",
     "deploy": "wrangler deploy src/worker.js",
     "db:migrate": "wrangler d1 migrations apply flareforum-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply flareforum-db --remote",
-    "test": "node --test"
+    "db:migrate:remote": "wrangler d1 migrations apply flareforum-db --remote --yes",
+    "test": "node --test",
+    "setup:prod": "node scripts/ci-deploy.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.2"
   }
 }

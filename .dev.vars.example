@@ -2,7 +2,14 @@
 APP_URL=http://127.0.0.1:8787
 SESSION_SECRET=change-me-to-a-long-random-secret
 INVITE_EMAIL_FROM=invite@your-domain.com
+# Email Provider: "mock", "gmail", or "resend"
 EMAIL_PROVIDER=mock
-# For email provider "resend", set EMAIL_API_URL and EMAIL_API_KEY.
+
+# For email provider "gmail" (App Password from https://myaccount.google.com/apppasswords):
+GMAIL_USER=your-account@gmail.com
+GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+
+# For email provider "resend":
 EMAIL_API_URL=https://api.resend.com/emails
 EMAIL_API_KEY=replace-with-api-key
+

@@ -1,0 +1,37 @@
+name: Cloudflare Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test-and-deploy:
+    name: Test & Deploy to Cloudflare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Unit Tests
+        run: npm test
+
+      - name: Automated Bootstrap & Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: node scripts/ci-deploy.mjs

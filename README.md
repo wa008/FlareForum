@@ -121,12 +121,53 @@ Tables:
 
 Default is `mock` mode (logs emails in Worker logs).
 
-To use a real provider, set:
+### Option 1: Gmail (Recommended for personal / low-cost setups)
+
+Uses Cloudflare Workers native TCP Sockets (`cloudflare:sockets`) to connect directly to `smtp.gmail.com:465`.
+
+1. Go to your [Google Account Security](https://myaccount.google.com/security).
+2. Enable 2-Step Verification if not already enabled.
+3. Search for or visit **App passwords** (`https://myaccount.google.com/apppasswords`).
+4. Generate an App password (e.g. named "FlareForum"). You will receive a 16-character code.
+5. Configure the following variables/secrets:
+   - `EMAIL_PROVIDER=gmail`
+   - `GMAIL_USER=your-account@gmail.com`
+   - `GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx`
+   - `INVITE_EMAIL_FROM=your-account@gmail.com`
+
+### Option 2: Resend
 
 - `EMAIL_PROVIDER=resend`
-- `EMAIL_API_URL`
-- `EMAIL_API_KEY`
-- `INVITE_EMAIL_FROM`
+- `EMAIL_API_URL=https://api.resend.com/emails`
+- `EMAIL_API_KEY=re_...`
+- `INVITE_EMAIL_FROM=invite@your-domain.com`
+
+## Automated Cloudflare Deployment (GitHub Actions CI/CD)
+
+The project includes an end-to-end zero-touch automated deployment workflow (`.github/workflows/deploy.yml`).
+
+### Step 1: Configure GitHub Repository Secrets
+
+In your GitHub repository, go to **Settings** > **Secrets and variables** > **Actions** > **New repository secret**:
+
+| Secret Name | Required? | Description |
+| :--- | :--- | :--- |
+| `CLOUDFLARE_API_TOKEN` | **Yes** | Cloudflare API Token with Workers, D1 & Account edit permissions. |
+| `CLOUDFLARE_ACCOUNT_ID` | **Yes** | 32-character Account ID from Cloudflare dashboard Workers overview. |
+| `GMAIL_USER` | **Recommended** | Your Gmail email address. |
+| `GMAIL_APP_PASSWORD` | **Recommended** | Your 16-character Google App Password. |
+| `APP_URL` | *Optional* | Custom production domain. If omitted, the workflow automatically links your `*.workers.dev` domain. |
+| `SESSION_SECRET` | *Optional* | A custom 32-byte secret. If omitted, the workflow automatically generates one and injects it. |
+
+### Step 2: Push to Main
+
+Once secrets are saved, any `git push` to `main` (or clicking **Run workflow** on the Actions tab) will automatically:
+1. Run test suite (`npm test`).
+2. Auto-create the remote D1 database if not yet existing.
+3. Auto-inject `SESSION_SECRET` and Gmail credentials into Worker Secrets.
+4. Auto-apply D1 migrations (`migrations/0001_init.sql`).
+5. Deploy Worker and `./web` static assets.
+6. Synchronize `APP_URL` and run a health-check probe (`/api/health`).
 
 ## Next Iterations
 
@@ -135,3 +176,4 @@ To use a real provider, set:
 - Search and tag system
 - Better moderation tooling
 - Rich anti-spam controls
+

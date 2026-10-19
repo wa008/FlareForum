@@ -501,30 +501,136 @@ async function sendEmail(env, { to, subject, text }) {
     return;
   }
 
-  if (provider !== 'resend') {
-    throw new Error(`Unsupported email provider: ${provider}`);
+  if (provider === 'gmail') {
+    return await sendEmailViaGmail(env, { to, subject, text });
   }
 
-  const apiUrl = env.EMAIL_API_URL;
-  const apiKey = env.EMAIL_API_KEY;
-  const from = env.INVITE_EMAIL_FROM;
+  if (provider === 'resend') {
+    const apiUrl = env.EMAIL_API_URL;
+    const apiKey = env.EMAIL_API_KEY;
+    const from = env.INVITE_EMAIL_FROM;
 
-  if (!apiUrl || !apiKey || !from) {
-    throw new Error('Email provider configuration missing');
+    if (!apiUrl || !apiKey || !from) {
+      throw new Error('Email provider configuration missing (EMAIL_API_URL, EMAIL_API_KEY, INVITE_EMAIL_FROM)');
+    }
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({ from, to, subject, text })
+    });
+
+    if (!response.ok) {
+      const msg = await response.text();
+      throw new Error(`Email send failed: ${response.status} ${msg}`);
+    }
+    return;
   }
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: 'Bearer ' + apiKey
-    },
-    body: JSON.stringify({ from, to, subject, text })
-  });
+  throw new Error(`Unsupported email provider: ${provider}`);
+}
 
-  if (!response.ok) {
-    const msg = await response.text();
-    throw new Error(`Email send failed: ${response.status} ${msg}`);
+async function sendEmailViaGmail(env, { to, subject, text }) {
+  const { connect } = await import('cloudflare:sockets');
+  const user = env.GMAIL_USER || env.INVITE_EMAIL_FROM;
+  const rawPass = env.GMAIL_APP_PASSWORD || env.EMAIL_API_KEY;
+  const pass = rawPass ? rawPass.replace(/\s+/g, '') : '';
+  const from = env.INVITE_EMAIL_FROM || user;
+
+  if (!user || !pass) {
+    throw new Error('Gmail configuration missing: GMAIL_USER and GMAIL_APP_PASSWORD are required');
+  }
+
+  const socket = connect('smtp.gmail.com:465', { secureTransport: 'on' });
+  const writer = socket.writable.getWriter();
+  const reader = socket.readable.getReader();
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
+  let buffer = '';
+
+  async function readReply() {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\r\n');
+      if (lines.length > 1) {
+        for (let i = lines.length - 2; i >= 0; i--) {
+          const line = lines[i];
+          if (/^\d{3} /.test(line)) {
+            const code = parseInt(line.substring(0, 3), 10);
+            const fullReply = lines.slice(0, i + 1).join('\r\n');
+            buffer = lines.slice(i + 1).join('\r\n');
+            return { code, text: fullReply };
+          }
+        }
+      }
+    }
+    throw new Error('Connection closed before complete reply received');
+  }
+
+  async function sendCmd(cmd, expectedCode) {
+    await writer.write(encoder.encode(cmd + '\r\n'));
+    const reply = await readReply();
+    if (expectedCode && reply.code !== expectedCode) {
+      throw new Error(`SMTP command failed (${reply.code}): ${reply.text}`);
+    }
+    return reply;
+  }
+
+  function toBase64(str) {
+    const bytes = encoder.encode(str);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  try {
+    const greeting = await readReply();
+    if (greeting.code !== 220) {
+      throw new Error(`Unexpected greeting: ${greeting.code} ${greeting.text}`);
+    }
+
+    await sendCmd('EHLO localhost', 250);
+    await sendCmd('AUTH LOGIN', 334);
+    await sendCmd(toBase64(user), 334);
+    await sendCmd(toBase64(pass), 235);
+    await sendCmd(`MAIL FROM:<${user}>`, 250);
+    await sendCmd(`RCPT TO:<${to}>`, 250);
+    await sendCmd('DATA', 354);
+
+    const encodedSubject = `=?UTF-8?B?${toBase64(subject)}?=`;
+    const message = [
+      `From: ${from}`,
+      `To: ${to}`,
+      `Subject: ${encodedSubject}`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      text,
+      '.'
+    ].join('\r\n');
+
+    await writer.write(encoder.encode(message + '\r\n'));
+    const dataReply = await readReply();
+    if (dataReply.code !== 250) {
+      throw new Error(`Data send failed: ${dataReply.code} ${dataReply.text}`);
+    }
+
+    await sendCmd('QUIT', 221).catch(() => {});
+  } finally {
+    try {
+      writer.releaseLock();
+      reader.releaseLock();
+      socket.close();
+    } catch {}
   }
 }
 
