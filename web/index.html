@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FlareForum</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">FlareForum</div>
+      <div id="authArea" class="auth-area"></div>
+    </header>
+
+    <main>
+      <section class="panel" id="loginPanel">
+        <h2>Email Login</h2>
+        <form id="loginForm">
+          <input id="loginEmail" type="email" placeholder="you@example.com" required />
+          <button type="submit">Send login link</button>
+        </form>
+        <p class="hint">Google/GitHub login endpoints are reserved for later versions.</p>
+      </section>
+
+      <section class="panel" id="registerPanel" hidden>
+        <h2>Register with Invite Link</h2>
+        <form id="registerForm">
+          <input id="registerUsername" type="text" minlength="3" maxlength="24" placeholder="username" required />
+          <button type="submit">Create account</button>
+        </form>
+      </section>
+
+      <section class="panel" id="invitePanel" hidden>
+        <h2>Invite someone</h2>
+        <form id="inviteForm">
+          <input id="inviteEmail" type="email" placeholder="friend@example.com" required />
+          <button type="submit">Send invite</button>
+        </form>
+      </section>
+
+      <section class="panel" id="postPanel" hidden>
+        <h2>Submit Post</h2>
+        <form id="postForm">
+          <input id="postTitle" type="text" maxlength="160" placeholder="title" required />
+          <input id="postUrl" type="url" placeholder="https://example.com (optional)" />
+          <textarea id="postBody" maxlength="10000" placeholder="text (optional if URL provided)"></textarea>
+          <button type="submit">Post</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="row">
+          <h2>Posts</h2>
+          <div>
+            <button id="sortNew" class="small">new</button>
+            <button id="sortHot" class="small">hot</button>
+          </div>
+        </div>
+        <p class="hint">Auto refresh every 30 seconds</p>
+        <ul id="postList" class="post-list"></ul>
+      </section>
+
+      <section class="panel" id="detailPanel" hidden>
+        <h2 id="detailTitle"></h2>
+        <p id="detailMeta" class="hint"></p>
+        <p id="detailBody"></p>
+        <h3>Comments</h3>
+        <ul id="commentList" class="comment-list"></ul>
+        <form id="commentForm" hidden>
+          <textarea id="commentBody" maxlength="5000" required placeholder="Write comment"></textarea>
+          <button type="submit">Add comment</button>
+        </form>
+      </section>
+
+      <section class="panel" id="messagePanel">
+        <pre id="message"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

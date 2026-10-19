@@ -1,0 +1,8 @@
+# Copy to .dev.vars for local development.
+APP_URL=http://127.0.0.1:8787
+SESSION_SECRET=change-me-to-a-long-random-secret
+INVITE_EMAIL_FROM=invite@your-domain.com
+EMAIL_PROVIDER=mock
+# For email provider "resend", set EMAIL_API_URL and EMAIL_API_KEY.
+EMAIL_API_URL=https://api.resend.com/emails
+EMAIL_API_KEY=replace-with-api-key
