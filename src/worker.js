@@ -549,7 +549,9 @@ function normalizeUsername(value) {
 
 function uniqueUsernameFromEmail(email) {
   const local = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 18) || 'admin';
-  return `${local}_${Math.random().toString(36).slice(2, 6)}`;
+  const suffix = crypto.getRandomValues(new Uint8Array(3));
+  const rand = Array.from(suffix, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 6);
+  return `${local}_${rand}`;
 }
 
 function makeSessionCookie(token, ttlHours) {
