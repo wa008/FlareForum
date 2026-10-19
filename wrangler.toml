@@ -1,0 +1,24 @@
+name = "flareforum"
+main = "src/worker.js"
+compatibility_date = "2026-10-19"
+
+[assets]
+directory = "./web"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "flareforum-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+APP_URL = "http://127.0.0.1:8787"
+SESSION_TTL_HOURS = "168"
+INVITE_TTL_HOURS = "72"
+MAGIC_LINK_TTL_MINUTES = "15"
+INVITES_PER_DAY = "10"
+INVITES_PER_HOUR = "3"
+CACHE_TTL_SECONDS = "15"
+
+[observability.logs]
+enabled = true

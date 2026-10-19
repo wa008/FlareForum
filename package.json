@@ -1,0 +1,13 @@
+{
+  "name": "flareforum",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev src/worker.js --local",
+    "deploy": "wrangler deploy src/worker.js",
+    "db:migrate": "wrangler d1 migrations apply flareforum-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply flareforum-db --remote",
+    "test": "node --test"
+  }
+}
