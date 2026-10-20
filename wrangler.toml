@@ -12,7 +12,6 @@ database_name = "flareforum-db"
 database_id = "d217cea1-0c2d-489a-a225-5ae997e80e6e"
 
 [vars]
-APP_URL = "http://127.0.0.1:8787"
 SESSION_TTL_HOURS = "168"
 INVITE_TTL_HOURS = "72"
 MAGIC_LINK_TTL_MINUTES = "15"

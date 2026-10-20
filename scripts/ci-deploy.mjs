@@ -208,7 +208,12 @@ async function main() {
 
   if (finalAppUrl) {
     log(`Syncing APP_URL to: ${finalAppUrl}`);
-    runInteractive('npx wrangler secret put APP_URL', finalAppUrl);
+    try {
+      runInteractive('npx wrangler secret put APP_URL', finalAppUrl);
+      log('APP_URL configured.');
+    } catch (err) {
+      console.warn('Notice: APP_URL secret put warning:', err.message);
+    }
 
     // 7. Health check
     log('Performing automated post-deployment health check...');
