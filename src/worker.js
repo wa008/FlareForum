@@ -30,6 +30,12 @@ async function handleApi(request, env, ctx, url) {
   if (request.method === 'POST' && pathname === '/api/auth/request-login') {
     return requestLogin(request, env);
   }
+  if (request.method === 'POST' && pathname === '/api/auth/admin/setup-password') {
+    return adminSetupPassword(request, env);
+  }
+  if (request.method === 'POST' && pathname === '/api/auth/admin/login') {
+    return adminPasswordLogin(request, env);
+  }
   if (request.method === 'GET' && pathname === '/api/auth/me') {
     return getMe(request, env);
   }
@@ -84,6 +90,25 @@ async function handleApi(request, env, ctx, url) {
   return json({ error: 'Not found' }, 404);
 }
 
+function getAdminEmails(env) {
+  const raw = [
+    env.ADMIN_EMAILS,
+    env.ADMIN_EMAIL,
+    env.GMAIL_USER
+  ].filter(Boolean).join(',');
+
+  return raw
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0 && e.includes('@'));
+}
+
+function isAdminEmail(env, email) {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  return getAdminEmails(env).includes(normalized);
+}
+
 async function requestLogin(request, env) {
   const body = await readJson(request);
   const email = normalizeEmail(body?.email);
@@ -96,15 +121,72 @@ async function requestLogin(request, env) {
     return json({ error: 'Too many requests, try again later' }, 429);
   }
 
-  const hasAnyUsers = await env.DB.prepare(`SELECT COUNT(*) as cnt FROM users`).first();
-  const existingUser = await env.DB.prepare(
-    `SELECT id FROM users WHERE email = ? LIMIT 1`
+  const user = await env.DB.prepare(
+    `SELECT id, role, status, password_hash FROM users WHERE email = ? LIMIT 1`
   ).bind(email).first();
 
-  if (!existingUser && (hasAnyUsers?.cnt ?? 0) > 0) {
+  const isAdmin = isAdminEmail(env, email);
+
+  // 普通用户：若无账号，提示必须先有邀请链接
+  if (!user && !isAdmin) {
     return json({ error: 'No account found for this email. Request an invite first.' }, 404);
   }
 
+  // 管理员账号处理
+  if (isAdmin) {
+    // 若已设置密码，提示可直接输入密码登录，并发送备用 Magic Link
+    if (user && user.password_hash) {
+      const token = randomToken();
+      const tokenHash = await sha256(token + env.SESSION_SECRET);
+      const minutes = Number(env.MAGIC_LINK_TTL_MINUTES ?? 15);
+      const expiresAt = isoInMinutes(minutes);
+
+      await env.DB.prepare(
+        `INSERT INTO login_tokens(email, token_hash, expires_at) VALUES(?, ?, ?)`
+      ).bind(email, tokenHash, expiresAt).run();
+
+      const verifyUrl = `${env.APP_URL}/auth/verify?token=${encodeURIComponent(token)}`;
+      await sendEmail(env, {
+        to: email,
+        subject: 'FlareForum Admin Login Link',
+        text: `Admin login link (expires in ${minutes} minutes): ${verifyUrl}`
+      });
+
+      return json({
+        ok: true,
+        is_admin: true,
+        has_password: true,
+        message: 'Admin account has a password set. You can log in directly with your password, or use the link sent to your email.'
+      });
+    }
+
+    // 管理员尚未设置密码（首次登录）：发送带 setup_admin 的激活链接
+    const token = randomToken();
+    const tokenHash = await sha256(token + env.SESSION_SECRET);
+    const minutes = 30;
+    const expiresAt = isoInMinutes(minutes);
+
+    await env.DB.prepare(
+      `INSERT INTO login_tokens(email, token_hash, expires_at) VALUES(?, ?, ?)`
+    ).bind(email, tokenHash, expiresAt).run();
+
+    const setupUrl = `${env.APP_URL}/?setup_admin=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+    await sendEmail(env, {
+      to: email,
+      subject: 'FlareForum: Set up your Admin Password (First-time Login)',
+      text: `Welcome! As an administrator, please click the link below to set your password and activate your account (valid for ${minutes} minutes):\n\n${setupUrl}`
+    });
+
+    await logAction(env, null, 'admin_setup_link_sent', 'email', null, JSON.stringify({ email }));
+    return json({
+      ok: true,
+      is_admin: true,
+      needs_password_setup: true,
+      message: 'First-time admin activation link sent. Check your email to set your password.'
+    });
+  }
+
+  // 普通用户登录
   const token = randomToken();
   const tokenHash = await sha256(token + env.SESSION_SECRET);
   const minutes = Number(env.MAGIC_LINK_TTL_MINUTES ?? 15);
@@ -125,6 +207,125 @@ async function requestLogin(request, env) {
   return json({ ok: true, message: 'Login link sent' });
 }
 
+async function adminSetupPassword(request, env) {
+  const body = await readJson(request);
+  const token = String(body?.token || '').trim();
+  const password = String(body?.password || '');
+
+  if (!token || !password) {
+    return json({ error: 'Token and password are required' }, 400);
+  }
+
+  if (password.length < 8) {
+    return json({ error: 'Password must be at least 8 characters' }, 400);
+  }
+
+  const tokenHash = await sha256(token + env.SESSION_SECRET);
+  const rec = await env.DB.prepare(
+    `SELECT id, email FROM login_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > CURRENT_TIMESTAMP LIMIT 1`
+  ).bind(tokenHash).first();
+
+  if (!rec) {
+    return json({ error: 'Invalid or expired setup token' }, 400);
+  }
+
+  const email = rec.email.toLowerCase();
+  if (!isAdminEmail(env, email)) {
+    return json({ error: 'Email is not authorized as administrator' }, 403);
+  }
+
+  await env.DB.prepare(`UPDATE login_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(rec.id).run();
+
+  const { hash, salt } = await hashPassword(password);
+
+  let user = await env.DB.prepare(`SELECT id, role, status FROM users WHERE email = ? LIMIT 1`).bind(email).first();
+
+  if (!user) {
+    const username = uniqueUsernameFromEmail(email);
+    const insertRes = await env.DB.prepare(
+      `INSERT INTO users(email, username, role, status, password_hash, password_salt) VALUES(?, ?, 'admin', 'active', ?, ?)`
+    ).bind(email, username, hash, salt).run();
+    user = { id: insertRes.meta.last_row_id, role: 'admin', status: 'active', username };
+  } else {
+    await env.DB.prepare(
+      `UPDATE users SET role = 'admin', status = 'active', password_hash = ?, password_salt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).bind(hash, salt, user.id).run();
+    user.role = 'admin';
+    user.status = 'active';
+  }
+
+  await logAction(env, user.id, 'admin_password_setup', 'user', user.id, JSON.stringify({ email }));
+
+  const sessionToken = randomToken();
+  const sessionHash = await sha256(sessionToken + env.SESSION_SECRET);
+  const ttlHours = Number(env.SESSION_TTL_HOURS ?? 168);
+  const sessionExpires = isoInHours(ttlHours);
+
+  await env.DB.prepare(
+    `INSERT INTO sessions(user_id, token_hash, expires_at) VALUES(?, ?, ?)`
+  ).bind(user.id, sessionHash, sessionExpires).run();
+
+  const cookie = makeSessionCookie(sessionToken, ttlHours);
+  return json({ ok: true, user, message: 'Admin password set successfully' }, 200, {
+    'set-cookie': cookie
+  });
+}
+
+async function adminPasswordLogin(request, env) {
+  const body = await readJson(request);
+  const email = normalizeEmail(body?.email);
+  const password = String(body?.password || '');
+
+  if (!email || !password) {
+    return json({ error: 'Email and password are required' }, 400);
+  }
+
+  if (!isAdminEmail(env, email)) {
+    return json({ error: 'Unauthorized administrator email' }, 403);
+  }
+
+  const user = await env.DB.prepare(
+    `SELECT id, username, role, status, password_hash, password_salt FROM users WHERE email = ? LIMIT 1`
+  ).bind(email).first();
+
+  if (!user || !user.password_hash) {
+    return json({
+      error: 'Admin account has not set a password yet. Please request a setup link via email first.',
+      needs_setup: true
+    }, 400);
+  }
+
+  if (user.status !== 'active') {
+    return json({ error: 'Account is banned' }, 403);
+  }
+
+  const valid = await verifyPassword(password, user.password_hash, user.password_salt);
+  if (!valid) {
+    return json({ error: 'Invalid email or password' }, 401);
+  }
+
+  if (user.role !== 'admin') {
+    await env.DB.prepare(`UPDATE users SET role = 'admin' WHERE id = ?`).bind(user.id).run();
+    user.role = 'admin';
+  }
+
+  const sessionToken = randomToken();
+  const sessionHash = await sha256(sessionToken + env.SESSION_SECRET);
+  const ttlHours = Number(env.SESSION_TTL_HOURS ?? 168);
+  const sessionExpires = isoInHours(ttlHours);
+
+  await env.DB.prepare(
+    `INSERT INTO sessions(user_id, token_hash, expires_at) VALUES(?, ?, ?)`
+  ).bind(user.id, sessionHash, sessionExpires).run();
+
+  await logAction(env, user.id, 'admin_password_login', 'user', user.id, JSON.stringify({ email }));
+
+  const cookie = makeSessionCookie(sessionToken, ttlHours);
+  return json({ ok: true, user }, 200, {
+    'set-cookie': cookie
+  });
+}
+
 async function verifyMagicLink(request, env, url) {
   const token = url.searchParams.get('token') || '';
   if (!token) return new Response('Missing token', { status: 400 });
@@ -141,8 +342,8 @@ async function verifyMagicLink(request, env, url) {
   let user = await env.DB.prepare(`SELECT id, role, status FROM users WHERE email = ? LIMIT 1`).bind(rec.email).first();
 
   if (!user) {
-    const hasAnyUsers = await env.DB.prepare(`SELECT COUNT(*) as cnt FROM users`).first();
-    if ((hasAnyUsers?.cnt ?? 0) > 0) {
+    const isAdmin = isAdminEmail(env, rec.email);
+    if (!isAdmin) {
       return new Response('No account found. Request an invite link first.', { status: 403 });
     }
     const username = uniqueUsernameFromEmail(rec.email);
@@ -150,7 +351,10 @@ async function verifyMagicLink(request, env, url) {
       `INSERT INTO users(email, username, role) VALUES(?, ?, 'admin')`
     ).bind(rec.email, username).run();
     user = { id: insertRes.meta.last_row_id, role: 'admin', status: 'active' };
-    await logAction(env, user.id, 'bootstrap_admin_created', 'user', user.id, JSON.stringify({ email: rec.email }));
+    await logAction(env, user.id, 'admin_created_via_magic_link', 'user', user.id, JSON.stringify({ email: rec.email }));
+  } else if (isAdminEmail(env, rec.email) && user.role !== 'admin') {
+    await env.DB.prepare(`UPDATE users SET role = 'admin' WHERE id = ?`).bind(user.id).run();
+    user.role = 'admin';
   }
 
   if (user.status !== 'active') {
@@ -677,6 +881,19 @@ function readSessionCookie(cookieHeader) {
 function randomToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
   return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+}
+
+async function hashPassword(password, salt = null) {
+  salt = salt || crypto.randomUUID();
+  const raw = `${salt}:${password}`;
+  const hash = await sha256(raw);
+  return { hash, salt };
+}
+
+async function verifyPassword(password, hash, salt) {
+  if (!password || !hash || !salt) return false;
+  const calculated = await sha256(`${salt}:${password}`);
+  return calculated === hash;
 }
 
 async function sha256(input) {

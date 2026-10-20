@@ -107,6 +107,43 @@ async function main() {
     console.warn('Notice: SESSION_SECRET put warning:', err.message);
   }
 
+  // 3.1 Admin Emails Aggregation (Cloudflare account email + GMAIL_USER + ADMIN_EMAILS)
+  log('Aggregating administrator emails...');
+  const adminEmailSet = new Set();
+
+  try {
+    const whoami = run('npx wrangler whoami');
+    const cfEmailMatch = whoami.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    if (cfEmailMatch) {
+      adminEmailSet.add(cfEmailMatch[0].toLowerCase());
+      log(`Detected Cloudflare account email: ${cfEmailMatch[0]}`);
+    }
+  } catch {}
+
+  if (process.env.GMAIL_USER) {
+    adminEmailSet.add(process.env.GMAIL_USER.trim().toLowerCase());
+    log(`Added Gmail sender as admin: ${process.env.GMAIL_USER}`);
+  }
+
+  const explicitAdminEmails = process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL;
+  if (explicitAdminEmails) {
+    explicitAdminEmails.split(',').forEach((e) => {
+      const trimmed = e.trim().toLowerCase();
+      if (trimmed.includes('@')) {
+        adminEmailSet.add(trimmed);
+        log(`Added custom admin email: ${trimmed}`);
+      }
+    });
+  }
+
+  const finalAdminEmails = Array.from(adminEmailSet).join(',');
+  if (finalAdminEmails) {
+    log(`Setting ADMIN_EMAILS: ${finalAdminEmails}`);
+    runInteractive('npx wrangler secret put ADMIN_EMAILS', finalAdminEmails);
+  } else {
+    console.warn('Notice: No administrator emails detected or configured.');
+  }
+
   // Gmail / Email configuration
   const gmailUser = process.env.GMAIL_USER;
   const gmailPass = process.env.GMAIL_APP_PASSWORD;

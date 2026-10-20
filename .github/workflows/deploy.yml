@@ -34,4 +34,5 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           APP_URL: ${{ secrets.APP_URL }}
+          ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
         run: node scripts/ci-deploy.mjs

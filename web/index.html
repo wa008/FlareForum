@@ -13,13 +13,27 @@
     </header>
 
     <main>
+      <section class="panel" id="adminSetupPanel" hidden>
+        <h2>Admin First-time Setup: Set Password</h2>
+        <p class="hint">Welcome! Set a secure password for your administrator account.</p>
+        <form id="adminSetupForm">
+          <input id="adminSetupPassword" type="password" minlength="8" placeholder="New Password (min 8 characters)" required />
+          <input id="adminSetupPasswordConfirm" type="password" minlength="8" placeholder="Confirm Password" required />
+          <button type="submit">Save Password & Enter</button>
+        </form>
+      </section>
+
       <section class="panel" id="loginPanel">
-        <h2>Email Login</h2>
+        <h2>Login</h2>
         <form id="loginForm">
           <input id="loginEmail" type="email" placeholder="you@example.com" required />
-          <button type="submit">Send login link</button>
+          <input id="loginPassword" type="password" placeholder="Password (for Admin)" />
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <button id="sendLinkBtn" type="button">Send Magic / Setup Link</button>
+            <button id="passwordLoginBtn" type="submit">Admin Password Login</button>
+          </div>
         </form>
-        <p class="hint">Google/GitHub login endpoints are reserved for later versions.</p>
+        <p class="hint">Admins can log in directly with password once set. Regular users log in via invite / magic link.</p>
       </section>
 
       <section class="panel" id="registerPanel" hidden>
@@ -46,6 +60,21 @@
           <textarea id="postBody" maxlength="10000" placeholder="text (optional if URL provided)"></textarea>
           <button type="submit">Post</button>
         </form>
+      </section>
+
+      <section class="panel" id="adminPanel" hidden>
+        <h2>Admin Management Panel</h2>
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+          <button id="toggleInvitesBtn" type="button" class="small">View Invite Logs</button>
+          <div style="display: inline-flex; gap: 4px; align-items: center;">
+            <input id="banUserIdInput" type="number" placeholder="User ID to ban" style="width: 130px;" />
+            <button id="banUserBtn" type="button" class="small" style="color: #b00;">Ban User</button>
+          </div>
+        </div>
+        <div id="adminInvitesContainer" hidden style="margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
+          <h3>Invite Audit History</h3>
+          <ul id="adminInviteList" class="post-list"></ul>
+        </div>
       </section>
 
       <section class="panel">

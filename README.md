@@ -158,16 +158,34 @@ In your GitHub repository, go to **Settings** > **Secrets and variables** > **Ac
 | `GMAIL_APP_PASSWORD` | **Recommended** | Your 16-character Google App Password. |
 | `APP_URL` | *Optional* | Custom production domain. If omitted, the workflow automatically links your `*.workers.dev` domain. |
 | `SESSION_SECRET` | *Optional* | A custom 32-byte secret. If omitted, the workflow automatically generates one and injects it. |
+| `ADMIN_EMAILS` | *Optional* | Custom admin emails (comma-separated). The system already automatically includes your Cloudflare email and `GMAIL_USER`. |
 
 ### Step 2: Push to Main
 
 Once secrets are saved, any `git push` to `main` (or clicking **Run workflow** on the Actions tab) will automatically:
 1. Run test suite (`npm test`).
 2. Auto-create the remote D1 database if not yet existing.
-3. Auto-inject `SESSION_SECRET` and Gmail credentials into Worker Secrets.
-4. Auto-apply D1 migrations (`migrations/0001_init.sql`).
-5. Deploy Worker and `./web` static assets.
-6. Synchronize `APP_URL` and run a health-check probe (`/api/health`).
+3. Auto-aggregate Administrator emails (Cloudflare Account Email + `GMAIL_USER` + `ADMIN_EMAILS`).
+4. Auto-inject `SESSION_SECRET`, Admin emails, and Gmail credentials into Worker Secrets.
+5. Auto-apply D1 migrations (`migrations/0001_init.sql`, `migrations/0002_admin_password.sql`).
+6. Deploy Worker and `./web` static assets.
+7. Synchronize `APP_URL` and run a health-check probe (`/api/health`).
+
+## Administrator Account & Management
+
+1. **Who is the Admin?**
+   - Your Cloudflare account email (`zphu1024@gmail.com`) is automatically detected and granted admin privileges.
+   - Your sender email (`GMAIL_USER`) is also automatically granted admin privileges.
+   - You can also add more admin emails via the `ADMIN_EMAILS` secret.
+2. **First-time Admin Login & Password Setup**:
+   - On the forum homepage, enter your admin email and click **"Send Magic / Setup Link"**.
+   - You will receive an activation email with a setup link. Click the link to set your admin password (min 8 characters).
+   - Once set, you can log in directly anytime using **Email + Password**, without waiting for emails.
+3. **Admin Control Panel**:
+   - When logged in as admin, you can:
+     - View and audit all invite links and their usage status.
+     - Ban malicious users by user ID.
+     - Delete posts directly with the `delete` button next to any post.
 
 ## Next Iterations
 
