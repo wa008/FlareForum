@@ -6,6 +6,33 @@ function log(msg) {
   console.log(`\x1b[36m[CI-Deploy]\x1b[0m ${msg}`);
 }
 
+function maskSecret(str, keepStart = 4, keepEnd = 4) {
+  if (!str) return '<未设置/为空>';
+  const s = String(str).trim();
+  if (s.length <= keepStart + keepEnd) {
+    return '***';
+  }
+  const start = s.slice(0, keepStart);
+  const end = s.slice(-keepEnd);
+  return `${start}${'*'.repeat(Math.min(s.length - keepStart - keepEnd, 12))}${end} (长度: ${s.length})`;
+}
+
+function sanitizeOutput(text) {
+  if (!text) return text;
+  let clean = String(text);
+  const sensitiveVars = [
+    process.env.CLOUDFLARE_API_TOKEN,
+    process.env.GMAIL_APP_PASSWORD,
+    process.env.SESSION_SECRET
+  ];
+  for (const secret of sensitiveVars) {
+    if (secret && secret.length >= 6) {
+      clean = clean.split(secret).join('***MASKED***');
+    }
+  }
+  return clean;
+}
+
 function run(cmd, envOverrides = {}) {
   console.log(`\x1b[90m$ ${cmd}\x1b[0m`);
   return execSync(cmd, {
@@ -27,12 +54,21 @@ function runInteractive(cmd, input = null, envOverrides = {}) {
 async function main() {
   log('Starting Cloudflare automated deployment...');
 
+  // Diagnostic info (masked)
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  log(`Diagnostics: CLOUDFLARE_API_TOKEN = ${maskSecret(token)}`);
+  log(`Diagnostics: CLOUDFLARE_ACCOUNT_ID = ${maskSecret(accountId, 6, 4)}`);
+
   // 1. Verify wrangler access
   try {
     const whoami = run('npx wrangler whoami');
-    console.log(whoami.trim());
+    console.log(sanitizeOutput(whoami.trim()));
   } catch (err) {
-    console.error('Failed to authenticate with Cloudflare. Please check CLOUDFLARE_API_TOKEN / Account permissions.');
+    console.error('\x1b[31m[CI-Deploy] Failed to authenticate with Cloudflare.\x1b[0m');
+    if (err.stderr) console.error(sanitizeOutput(err.stderr.toString()));
+    if (err.stdout) console.error(sanitizeOutput(err.stdout.toString()));
+    if (err.message && !err.stderr && !err.stdout) console.error(sanitizeOutput(err.message));
     process.exit(1);
   }
 
