@@ -7,103 +7,231 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">FlareForum</div>
-      <div id="authArea" class="auth-area"></div>
+    <!-- Top Navigation Bar (Lobste.rs Style) -->
+    <header class="header-bar">
+      <div class="header-container">
+        <div class="header-left">
+          <a href="#hottest" class="brand-logo">
+            <span class="brand-icon">🔥</span>
+            <span>FlareForum</span>
+          </a>
+          <a href="#hottest" class="nav-link" id="navHottest">Hottest</a>
+          <a href="#newest" class="nav-link" id="navNewest">Newest</a>
+          <a href="#tree" class="nav-link" id="navTree">Tree</a>
+          <a href="#submit" class="nav-link" id="navSubmit">Submit</a>
+          <a href="#admin" class="nav-link admin-link" id="navAdmin" hidden>Admin</a>
+        </div>
+        <div class="header-right" id="headerAuthArea">
+          <!-- Populated by renderAuth() -->
+        </div>
+      </div>
     </header>
 
-    <main>
-      <section class="panel" id="adminSetupPanel" hidden>
-        <h2>Admin First-time Setup: Set Password</h2>
-        <p class="hint">Welcome! Set a secure password for your administrator account.</p>
-        <form id="adminSetupForm">
-          <input id="adminSetupPassword" type="password" minlength="8" placeholder="New Password (min 8 characters)" required />
-          <input id="adminSetupPasswordConfirm" type="password" minlength="8" placeholder="Confirm Password" required />
-          <button type="submit">Save Password & Enter</button>
-        </form>
-      </section>
-
-      <section class="panel" id="loginPanel">
-        <h2>Login</h2>
-        <form id="loginForm">
-          <input id="loginEmail" type="email" placeholder="you@example.com" required />
-          <input id="loginPassword" type="password" placeholder="Password (for Admin)" />
-          <div style="display: flex; gap: 8px; margin-top: 6px;">
-            <button id="sendLinkBtn" type="button">Send Magic / Setup Link</button>
-            <button id="passwordLoginBtn" type="submit">Admin Password Login</button>
-          </div>
-        </form>
-        <p class="hint">Admins can log in directly with password once set. Regular users log in via invite / magic link.</p>
-      </section>
-
-      <section class="panel" id="registerPanel" hidden>
-        <h2>Register with Invite Link</h2>
-        <form id="registerForm">
-          <input id="registerUsername" type="text" minlength="3" maxlength="24" placeholder="username" required />
-          <button type="submit">Create account</button>
-        </form>
-      </section>
-
-      <section class="panel" id="invitePanel" hidden>
-        <h2>Invite someone</h2>
-        <form id="inviteForm">
-          <input id="inviteEmail" type="email" placeholder="friend@example.com" required />
-          <button type="submit">Send invite</button>
-        </form>
-      </section>
-
-      <section class="panel" id="postPanel" hidden>
-        <h2>Submit Post</h2>
-        <form id="postForm">
-          <input id="postTitle" type="text" maxlength="160" placeholder="title" required />
-          <input id="postUrl" type="url" placeholder="https://example.com (optional)" />
-          <textarea id="postBody" maxlength="10000" placeholder="text (optional if URL provided)"></textarea>
-          <button type="submit">Post</button>
-        </form>
-      </section>
-
-      <section class="panel" id="adminPanel" hidden>
-        <h2>Admin Management Panel</h2>
-        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
-          <button id="toggleInvitesBtn" type="button" class="small">View Invite Logs</button>
-          <div style="display: inline-flex; gap: 4px; align-items: center;">
-            <input id="banUserIdInput" type="number" placeholder="User ID to ban" style="width: 130px;" />
-            <button id="banUserBtn" type="button" class="small" style="color: #b00;">Ban User</button>
-          </div>
+    <!-- Main Container -->
+    <main class="main-wrapper">
+      <div class="content-box">
+        <!-- Global Flash Alert Message -->
+        <div id="flashMessage" class="flash-message" hidden>
+          <span id="flashText"></span>
+          <span id="flashClose" class="flash-close">&times;</span>
         </div>
-        <div id="adminInvitesContainer" hidden style="margin-top: 8px; border-top: 1px dashed #ddd; padding-top: 8px;">
-          <h3>Invite Audit History</h3>
-          <ul id="adminInviteList" class="post-list"></ul>
-        </div>
-      </section>
 
-      <section class="panel">
-        <div class="row">
-          <h2>Posts</h2>
-          <div>
-            <button id="sortNew" class="small">new</button>
-            <button id="sortHot" class="small">hot</button>
+        <!-- 1. Home View (Default: Stories List Only) -->
+        <section id="homeView" class="app-view">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border-light); padding-bottom: 8px;">
+            <div style="font-weight: 600; color: #444;" id="viewTitle">Hottest Stories</div>
+            <div style="font-size: 12px; color: var(--text-muted);" id="postCountSummary"></div>
           </div>
-        </div>
-        <p class="hint">Auto refresh every 30 seconds</p>
-        <ul id="postList" class="post-list"></ul>
-      </section>
+          <ol id="storyList" class="story-list"></ol>
+          <div id="emptyStoryList" class="empty-placeholder" hidden>
+            No stories yet. <a href="#submit">Submit the first story</a>!
+          </div>
+        </section>
 
-      <section class="panel" id="detailPanel" hidden>
-        <h2 id="detailTitle"></h2>
-        <p id="detailMeta" class="hint"></p>
-        <p id="detailBody"></p>
-        <h3>Comments</h3>
-        <ul id="commentList" class="comment-list"></ul>
-        <form id="commentForm" hidden>
-          <textarea id="commentBody" maxlength="5000" required placeholder="Write comment"></textarea>
-          <button type="submit">Add comment</button>
-        </form>
-      </section>
+        <!-- 2. Story Details & Comments View -->
+        <section id="postDetailView" class="app-view" hidden>
+          <div style="margin-bottom: 12px;">
+            <a href="#hottest" class="btn-link">&larr; Back to stories</a>
+          </div>
+          <div class="post-detail-header">
+            <h1 id="detailTitle" class="detail-title"></h1>
+            <div id="detailMeta" class="story-subline"></div>
+          </div>
+          <div id="detailBodyBox" class="detail-body-box" hidden></div>
 
-      <section class="panel" id="messagePanel">
-        <pre id="message"></pre>
-      </section>
+          <h2 class="comments-header">Comments</h2>
+          <div id="commentFormContainer">
+            <form id="commentForm" class="comment-form">
+              <textarea id="commentBody" class="comment-textarea" placeholder="Leave a comment..." maxlength="5000" required></textarea>
+              <button type="submit" class="btn btn-primary" style="margin-top: 8px;">Post comment</button>
+            </form>
+          </div>
+          <div id="commentLoginPrompt" style="margin-bottom: 18px; font-size: 13px; color: var(--text-muted);" hidden>
+            Please <a href="#login">log in</a> to participate in the discussion.
+          </div>
+          <ul id="commentTree" class="comment-tree"></ul>
+          <div id="emptyComments" class="empty-placeholder" style="padding: 24px 0;" hidden>
+            No comments yet on this story.
+          </div>
+        </section>
+
+        <!-- 3. User Invitation Tree View (Lobste.rs signature feature) -->
+        <section id="treeView" class="app-view" hidden>
+          <h1 style="font-size: 19px; margin: 0 0 8px;">Community Invitation Tree</h1>
+          <div class="tree-page-desc">
+            FlareForum is an invite-only community. Every active account descends from the initial founding administrators through personal invitation links.
+          </div>
+          <div id="treeContainer"></div>
+        </section>
+
+        <!-- 4. Submit Story View -->
+        <section id="submitView" class="app-view" hidden>
+          <div class="form-card" style="max-width: 600px;">
+            <h2 class="form-title">Submit a Story</h2>
+            <p class="form-subtitle">Share interesting articles, code, projects, or questions with the community.</p>
+            <form id="submitPostForm">
+              <div class="form-group">
+                <label class="form-label" for="postTitle">Title</label>
+                <input id="postTitle" class="form-control" type="text" maxlength="160" placeholder="Interesting title" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="postUrl">URL (optional)</label>
+                <input id="postUrl" class="form-control" type="url" placeholder="https://example.com" />
+                <div class="form-hint">Leave blank if submitting a text post or discussion.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="postBody">Text / Discussion Body (optional)</label>
+                <textarea id="postBody" class="form-control" style="min-height: 120px;" maxlength="10000" placeholder="Add commentary, context, or ask questions..."></textarea>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: center; margin-top: 16px;">
+                <button type="submit" class="btn btn-primary">Submit Story</button>
+                <a href="#hottest" class="btn btn-secondary">Cancel</a>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- 5. Invite a Member View -->
+        <section id="inviteView" class="app-view" hidden>
+          <div class="form-card">
+            <h2 class="form-title">Invite a New Member</h2>
+            <p class="form-subtitle">Extend an invitation to someone who will contribute thoughtfully to FlareForum.</p>
+            <form id="sendInviteForm">
+              <div class="form-group">
+                <label class="form-label" for="inviteEmail">Recipient's Email Address</label>
+                <input id="inviteEmail" class="form-control" type="email" placeholder="colleague@example.com" required />
+                <div class="form-hint">An invitation email with a secure registration link will be sent.</div>
+              </div>
+              <button type="submit" class="btn btn-primary">Send Invitation</button>
+            </form>
+          </div>
+        </section>
+
+        <!-- 6. Unified Clean Login View (Zero Admin distinction) -->
+        <section id="loginView" class="app-view" hidden>
+          <div class="form-card">
+            <h2 class="form-title">Log In to FlareForum</h2>
+            <p class="form-subtitle">Enter your email to log in with a password or receive a one-time magic link.</p>
+            <form id="unifiedLoginForm">
+              <div class="form-group">
+                <label class="form-label" for="loginEmail">Email Address</label>
+                <input id="loginEmail" class="form-control" type="email" placeholder="you@example.com" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="loginPassword">Password (optional)</label>
+                <input id="loginPassword" class="form-control" type="password" placeholder="Enter password if you set one" />
+                <div class="form-hint">If you don't have a password, you can log in directly with a Magic Link sent to your email.</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 18px;">
+                <button id="primaryLoginBtn" type="submit" class="btn btn-primary" style="width: 100%;">Log In</button>
+                <button id="magicLinkLoginBtn" type="button" class="btn btn-secondary" style="width: 100%;">Email Me a Login Link</button>
+              </div>
+            </form>
+            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-light); font-size: 12px; color: var(--text-muted); text-align: center;">
+              FlareForum is an invite-only community. New accounts must be invited by an existing member.
+            </div>
+          </div>
+        </section>
+
+        <!-- 7. Admin Management Panel (Only visible to admin role) -->
+        <section id="adminView" class="app-view" hidden>
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-bottom: 18px;">
+            <h1 style="font-size: 20px; margin: 0; color: #8c1b1b;">Site Administration</h1>
+            <span class="tree-badge admin" style="font-size: 11px;">Admin Access Granted</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+            <!-- Ban User Tool -->
+            <div style="background: #fdfcfb; border: 1px solid var(--border-color); border-radius: 4px; padding: 14px 16px;">
+              <h3 style="margin: 0 0 10px; font-size: 15px;">User Moderation</h3>
+              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input id="banUserIdInput" class="form-control" type="number" placeholder="Enter User ID" style="max-width: 180px;" />
+                <button id="banUserBtn" type="button" class="btn btn-danger">Ban User</button>
+              </div>
+            </div>
+
+            <!-- Invite Audit Log -->
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 15px;">Invitations Audit Log</h3>
+                <button id="refreshAdminInvitesBtn" type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 12px;">Refresh</button>
+              </div>
+              <div style="overflow-x: auto;">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Inviter</th>
+                      <th>Invitee Email</th>
+                      <th>Status</th>
+                      <th>Accepted By</th>
+                      <th>Sent At</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminInvitesTableBody">
+                    <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Loading audit records...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 8. Register View (from Invite Link ?invite=...) -->
+        <section id="registerView" class="app-view" hidden>
+          <div class="form-card">
+            <h2 class="form-title">Accept Invitation</h2>
+            <p class="form-subtitle">Choose a username to join the FlareForum community.</p>
+            <form id="acceptInviteForm">
+              <div class="form-group">
+                <label class="form-label" for="registerUsername">Username</label>
+                <input id="registerUsername" class="form-control" type="text" minlength="3" maxlength="24" placeholder="e.g. alex" required />
+                <div class="form-hint">3 to 24 characters, letters and numbers recommended.</div>
+              </div>
+              <button type="submit" class="btn btn-primary" style="width: 100%;">Create Account & Enter</button>
+            </form>
+          </div>
+        </section>
+
+        <!-- 9. Admin First-time Password Setup View (?setup_admin=...) -->
+        <section id="adminSetupView" class="app-view" hidden>
+          <div class="form-card">
+            <h2 class="form-title">Set Administrator Password</h2>
+            <p class="form-subtitle">Welcome! Set a secure password for your administrator account.</p>
+            <form id="adminSetupPasswordForm">
+              <div class="form-group">
+                <label class="form-label" for="setupPassword">New Password</label>
+                <input id="setupPassword" class="form-control" type="password" minlength="8" placeholder="Minimum 8 characters" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="setupPasswordConfirm">Confirm Password</label>
+                <input id="setupPasswordConfirm" class="form-control" type="password" minlength="8" placeholder="Repeat your new password" required />
+              </div>
+              <button type="submit" class="btn btn-primary" style="width: 100%;">Save Password & Log In</button>
+            </form>
+          </div>
+        </section>
+      </div>
     </main>
 
     <script type="module" src="/app.js"></script>

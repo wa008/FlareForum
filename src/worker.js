@@ -33,7 +33,7 @@ async function handleApi(request, env, ctx, url) {
   if (request.method === 'POST' && pathname === '/api/auth/admin/setup-password') {
     return adminSetupPassword(request, env);
   }
-  if (request.method === 'POST' && pathname === '/api/auth/admin/login') {
+  if (request.method === 'POST' && (pathname === '/api/auth/login' || pathname === '/api/auth/admin/login')) {
     return adminPasswordLogin(request, env);
   }
   if (request.method === 'GET' && pathname === '/api/auth/me') {
@@ -71,6 +71,15 @@ async function handleApi(request, env, ctx, url) {
   const postCommentMatch = pathname.match(/^\/api\/posts\/(\d+)\/comments$/);
   if (request.method === 'POST' && postCommentMatch) {
     return createComment(request, env, Number(postCommentMatch[1]));
+  }
+
+  if (request.method === 'GET' && pathname === '/api/users/tree') {
+    return getUsersTree(request, env);
+  }
+
+  const postUpvoteMatch = pathname.match(/^\/api\/posts\/(\d+)\/upvote$/);
+  if (request.method === 'POST' && postUpvoteMatch) {
+    return upvotePost(request, env, Number(postUpvoteMatch[1]));
   }
 
   const adminDeletePostMatch = pathname.match(/^\/api\/admin\/posts\/(\d+)$/);
@@ -670,6 +679,28 @@ async function adminInviteLogs(request, env) {
   ).all();
 
   return json({ items: rows.results });
+}
+
+async function getUsersTree(request, env) {
+  const query = `
+    SELECT u.id, u.username, u.role, u.invited_by_user_id, u.created_at,
+           inviter.username AS inviter_username
+    FROM users u
+    LEFT JOIN users inviter ON inviter.id = u.invited_by_user_id
+    WHERE u.status = 'active'
+    ORDER BY u.id ASC
+  `;
+  const res = await env.DB.prepare(query).all();
+  return json({ ok: true, users: res.results || [] });
+}
+
+async function upvotePost(request, env, postId) {
+  const auth = await requireAuth(request, env, true);
+  if (auth instanceof Response) return auth;
+
+  await env.DB.prepare(`UPDATE posts SET score = score + 1 WHERE id = ? AND status = 'active'`).bind(postId).run();
+  const post = await env.DB.prepare(`SELECT score FROM posts WHERE id = ?`).bind(postId).first();
+  return json({ ok: true, score: post?.score ?? 1 });
 }
 
 async function requireAuth(request, env, activeOnly) {
