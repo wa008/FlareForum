@@ -191,7 +191,7 @@ async function main() {
 
   // 4. Apply remote database migrations
   log('Applying remote D1 migrations...');
-  runInteractive('npx wrangler d1 migrations apply flareforum-db --remote --yes');
+  runInteractive('npx wrangler d1 migrations apply flareforum-db --remote');
   log('D1 migrations applied successfully.');
 
   // 5. Deploy Worker and Static Assets
