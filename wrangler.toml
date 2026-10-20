@@ -9,7 +9,7 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "flareforum-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "d217cea1-0c2d-489a-a225-5ae997e80e6e"
 
 [vars]
 APP_URL = "http://127.0.0.1:8787"

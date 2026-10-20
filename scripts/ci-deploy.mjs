@@ -100,17 +100,11 @@ async function main() {
     if (!dbUuid) {
       log("Creating remote D1 database 'flareforum-db'...");
       try {
-        const createOutput = run('npx wrangler d1 create flareforum-db --json');
-        try {
-          const parsed = JSON.parse(createOutput);
-          dbUuid = parsed.database_id || parsed.uuid || parsed.id;
-        } catch {
-          const match = createOutput.match(/database_id\s*=\s*"([^"]+)"/);
-          if (match) dbUuid = match[1];
-        }
+        const createOutput = run('npx wrangler d1 create flareforum-db');
+        const match = createOutput.match(/database_id\s*=\s*"([^"]+)"/);
+        if (match) dbUuid = match[1];
       } catch (createErr) {
-        // Fallback: try regex from non-json creation
-        const match = createErr.message?.match(/database_id\s*=\s*"([^"]+)"/);
+        const match = (createErr.stdout?.toString() || createErr.stderr?.toString() || createErr.message || '').match(/database_id\s*=\s*"([^"]+)"/);
         if (match) dbUuid = match[1];
         else throw createErr;
       }
@@ -232,6 +226,8 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('\x1b[31mDeployment failed:\x1b[0m', err);
+  console.error('\x1b[31mDeployment failed:\x1b[0m', err.message || err);
+  if (err.stderr) console.error(sanitizeOutput(err.stderr.toString()));
+  if (err.stdout) console.error(sanitizeOutput(err.stdout.toString()));
   process.exit(1);
 });
